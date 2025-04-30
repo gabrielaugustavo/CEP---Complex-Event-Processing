@@ -17,3 +17,25 @@ One of the key tasks is **identifying widespread power outages**. If thousands o
 3. Sends this alarm to **Module 3**, indicating the number of alarms grouped into a single event  
 
 🚀 This module plays a crucial role in optimizing power grid monitoring and fault detection.  
+
+Project Setup
+
+Follow these steps to set up your local environment:
+
+1. Create and Activate Virtual Environment
+
+On macOS/Linux:
+
+python3 -m venv venv
+source venv/bin/activate
+
+On Windows:
+
+python -m venv venv
+.\venv\Scripts\activate
+
+2. Install Dependencies
+
+Install all the necessary packages listed in requirements.txt:
+
+pip install -r requirements.txt
