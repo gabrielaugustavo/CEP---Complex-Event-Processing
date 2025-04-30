@@ -6,6 +6,7 @@ from collections import defaultdict
 import random
 import threading
 import socket
+from collections import defaultdict as _dd
 import queue
 import json
 
@@ -44,27 +45,37 @@ class RealTimeClusterDetector:
         
         valid_packets = [p for p in packets if p['error_code'] == 0]
         self._update_error_stats(packets)
+
+        grid_cells = _dd(list)
+
+        for p in valid_packets:
+            i = int(p['lat']) // 100
+            j = int(p['lon']) // 100
+            grid_cells[(i,j)].append(p)
+        
         print(valid_packets)
 
-        if len(valid_packets) < self.min_cluster_size:
-            return []
-       
-        coords = np.array([(p['lat'], p['lon']) for p in valid_packets])
+        def _cluster_cell(cell_packets):
+            coords = np.array([(p['lat'], p['lon']) for p in cell_packets])
+            cluster = DBSCAN(eps=self.eps, min_samples=self.min_samples, 
+                      metric=self.metric).fit(np.radians(coords)).labels_
+            return self._extract_significant_clusters(coords, cluster)
+
         
-        
+        clusters = []
+
         with ThreadPoolExecutor() as executor:
-            clustering = executor.submit(
-                DBSCAN(eps=self.eps, min_samples=self.min_samples, 
-                      metric=self.metric).fit, np.radians(coords)
-            ).result()
-        
-        
-        clusters = self._extract_significant_clusters(coords, clustering.labels_)
-        
+            futures = [executor.submit(_cluster_cell, pts) for pts in grid_cells.values()]
+            for f in futures:
+                clusters.extend(f.result())
+
+        clusters.sort(key=lambda c: c['size'], reverse=True)
+
         return clusters
     
     def _extract_significant_clusters(self, coords, labels):
         """Extrai clusters que atendem ao critério de tamanho mínimo."""
+
         clusters = []
         unique_labels = set(labels) - {-1}  
         
