@@ -6,7 +6,7 @@ import time
 
 
 
-def generate_realistic_burst(total_packets=30000, num_clusters=4, eps=0.00005, host="127.0.0.1", port=5000):
+def generate_realistic_burst(total_packets=300000, num_clusters=6, eps=0.005, host="127.0.0.1", port=5000):
     """
     Gera uma rajada realista de pacotes com clusters aleatórios e envia cada pacote via UDP em formato JSON.
     """
@@ -17,41 +17,35 @@ def generate_realistic_burst(total_packets=30000, num_clusters=4, eps=0.00005, h
     
     for _ in range(num_clusters):
 
-        center_lat = random.uniform(-90, 90)
-        center_lon = random.uniform(-180, 180)
+        center_lat = random.uniform(-40, 40)
+        center_lon = random.uniform(-91, 91)
         
-        # Gera 300 pacotes muito próximos do centro
-        for _ in range(400):
+        for _ in range(600):
             packets.append({
-                'lat': center_lat + random.uniform(-eps*0.5, eps*0.5),
-                'lon': center_lon + random.uniform(-eps*0.5, eps*0.5),
-                'error_code': 0
+                'lat': center_lat + random.uniform(-90, 90)/1000,
+                'lon': center_lon +random.uniform(-180, 180)/1000,
+                'error_code': 7
             })
-        for _ in range(400):
-            packets.append({
-                'lat': center_lat + random.uniform(-eps*0.5, eps*0.5),
-                'lon': center_lon + random.uniform(-eps*0.5, eps*0.5),
-                'error_code': 1
-            })
+      
 
     noise_size = total_packets - len(packets)
     for _ in range(noise_size):
         packets.append({
             'lat': random.uniform(-90, 90),
             'lon': random.uniform(-180, 180),
-            'error_code': 0
+            'error_code': random.randint(0,10)
         })
 
     random.shuffle(packets)
     total_send_packets = 0
 
-    # Envia cada pacote via UDP como JSON
+    
     for packet in packets:
         data = json.dumps(packet).encode("utf-8")
         sock.sendto(data, (host, port))
         total_send_packets+=1
-        print(total_send_packets)
-    time.sleep(10)
+       
+   
     sock.close()
     
 
