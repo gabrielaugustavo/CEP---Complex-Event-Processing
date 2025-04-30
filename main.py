@@ -21,6 +21,7 @@ class RealTimeClusterDetector:
             min_samples (int): Número mínimo de pontos para formar um núcleo de cluster
             min_cluster_size (int): Tamanho mínimo para considerar um cluster válido
         """
+
         self.eps = eps
         self.min_samples = min_samples
         self.min_cluster_size = min_cluster_size
@@ -28,6 +29,7 @@ class RealTimeClusterDetector:
         self.error_stats = defaultdict(int)
     
     def process_packet_burst(self, packets):
+
         """
         Processa uma rajada de pacotes e retorna clusters densos encontrados.
         
@@ -41,25 +43,22 @@ class RealTimeClusterDetector:
                 'points': [(lat, lon), ...]
             }
         """
-        # 1. Filtragem por qualidade dos dados
-        
-        valid_packets = [p for p in packets if p['error_code'] == 0]
-        self._update_error_stats(packets)
 
         grid_cells = _dd(list)
 
-        for p in valid_packets:
-            i = int(p['lat']) // 100
-            j = int(p['lon']) // 100
-            grid_cells[(i,j)].append(p)
+        for p in packets:
+            cod = int(p['error_code'])
+            grid_cells[(cod)].append(p)
         
-        print(valid_packets)
+        print("Grids Existentes: " + str(len(grid_cells)))
+        print(list(grid_cells.keys()))
 
         def _cluster_cell(cell_packets):
             coords = np.array([(p['lat'], p['lon']) for p in cell_packets])
+            error_code = int(cell_packets[0].get('error_code', -1))
             cluster = DBSCAN(eps=self.eps, min_samples=self.min_samples, 
                       metric=self.metric).fit(np.radians(coords)).labels_
-            return self._extract_significant_clusters(coords, cluster)
+            return self._extract_significant_clusters(coords, cluster, error_code)
 
         
         clusters = []
@@ -73,7 +72,7 @@ class RealTimeClusterDetector:
 
         return clusters
     
-    def _extract_significant_clusters(self, coords, labels):
+    def _extract_significant_clusters(self, coords, labels, error_code):
         """Extrai clusters que atendem ao critério de tamanho mínimo."""
 
         clusters = []
@@ -88,7 +87,8 @@ class RealTimeClusterDetector:
                 clusters.append({
                     'center': center,
                     'size': cluster_size,
-                    'points': cluster_points.tolist()
+                    'points': cluster_points.tolist(),
+                    'error_code' : error_code
                 })
         
         
@@ -121,15 +121,20 @@ def udp_receiver():
             except socket.timeout:
                 # Verifica se o fluxo parou (nenhum pacote recebido por 5 segundos)
                 if last_packet_time and (time.time() - last_packet_time > 5):
+                    
                     print("Fluxo de pacotes parou. Enviando pacotes acumulados para a fila.")
+
                     if accumulated_packets:
                         packet_queue.put(accumulated_packets)
                         accumulated_packets = []
                         start_time = time.time()
-                        print(packet_queue)
                         detected_clusters = detector.process_packet_burst(packet_queue.get())
                         processing_time = time.time() - start_time
                         print(f"Tempo de processamento: {processing_time:.4f} s - Clusters detectados: {len(detected_clusters)}")
+                        for cluster_detail in detected_clusters:
+                            lat, lon = cluster_detail['center']
+                            error_code = cluster_detail['error_code']
+                            print(f"Centro do cluster ({lat:.6f}, {lon:.6f}) -  Erro: {error_code}"  )
                     last_packet_time = None  # Reseta o tempo do último pacote
 
                 continue
