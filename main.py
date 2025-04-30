@@ -10,6 +10,8 @@ import matplotlib.pyplot as plt
 from PIL import Image, ImageTk
 import sys
 
+HOST_MOD_3 = "127.0.0.1"
+PORT_MOD_3 = 6565
 
 last_plot_data = [None, None, None]
 
@@ -134,17 +136,41 @@ def udp_receiver():
                     gui_queue.put(('result', detected_clusters))
                     gui_queue.put(('plot', (burst, detected_clusters, detector.eps)))
                     processing_time = time.time() - start_time
+                    
+
                     print(f"Tempo de processamento: {processing_time:.4f} s - Clusters detectados: {len(detected_clusters)}")
                     for cluster_detail in detected_clusters:
                         lat, lon = cluster_detail['center']
                         error_code = cluster_detail['error_code']
                         print(f"Centro do cluster ({lat:.6f}, {lon:.6f}) -  Erro: {error_code}")
+                    udp_modulo_3(detected_clusters)
                 last_packet_time = None
             continue
 
         except OSError:
             break
 
+def udp_modulo_3(detected_clusters):
+
+    sock_mod3 = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock_mod3.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+
+    packetSend = []
+    for cluster_detail in detected_clusters:
+                        lat, lon = cluster_detail['center']
+                        error_code = cluster_detail['error_code']
+                        packetSend.append({
+                            'lat' : lat,
+                            'lon': lon,
+                            'error_code': error_code
+                        })
+                        
+    
+    for packet in packetSend:
+        data = json.dumps(packet).encode("utf-8")
+        sock.sendto(data, (HOST_MOD_3, PORT_MOD_3))
+
+    return
 
 class CustomGUI:
     def __init__(self, master):
