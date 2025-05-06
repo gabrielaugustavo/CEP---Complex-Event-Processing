@@ -6,7 +6,7 @@ import time
 
 
 
-def generate_realistic_burst(total_packets=300000, num_clusters=6, eps=0.005, host="127.0.0.1", port=5000):
+def generate_realistic_burst(total_packets=300000, num_clusters=3, eps=0.005, host="127.0.0.1", port=5000):
     """
     Gera uma rajada realista de pacotes com clusters aleatórios e envia cada pacote via UDP em formato JSON.
     """
@@ -24,7 +24,7 @@ def generate_realistic_burst(total_packets=300000, num_clusters=6, eps=0.005, ho
             packets.append({
                 'lat': center_lat + random.uniform(-90, 90)/1000,
                 'lon': center_lon +random.uniform(-180, 180)/1000,
-                'error_code': 7
+                'error_code': 3
             })
       
 
@@ -33,7 +33,7 @@ def generate_realistic_burst(total_packets=300000, num_clusters=6, eps=0.005, ho
         packets.append({
             'lat': random.uniform(-90, 90),
             'lon': random.uniform(-180, 180),
-            'error_code': random.randint(0,10)
+            'error_code': random.randint(0,4)
         })
 
     random.shuffle(packets)
@@ -43,6 +43,7 @@ def generate_realistic_burst(total_packets=300000, num_clusters=6, eps=0.005, ho
     for packet in packets:
         data = json.dumps(packet).encode("utf-8")
         sock.sendto(data, (host, port))
+        #print(f"{total_send_packets}")
         total_send_packets+=1
        
    
