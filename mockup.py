@@ -48,6 +48,7 @@ def generate_realistic_burst(total_packets=300000, num_clusters=3, eps=0.005, ho
        
    
     sock.close()
+    return packets
     
 
 if __name__ == "__main__":

@@ -24,7 +24,7 @@ class RealTimeClusterDetector:
         self.metric = 'haversine'
         self.error_stats = defaultdict(int)
 
-    def process_packet_burst(self, packets):
+    def process_packet_burst(self, packets, max_workers=8):
         grid_cells = defaultdict(list)
         for p in packets:
             i = int(p['lat']) * 100
@@ -40,7 +40,7 @@ class RealTimeClusterDetector:
             return self._extract_significant_clusters(coords, cluster, error_code)
 
         clusters = []
-        with ThreadPoolExecutor(max_workers = 8) as executor:
+        with ThreadPoolExecutor(max_workers = max_workers) as executor:
             futures = [executor.submit(_cluster_cell, pts) for pts in grid_cells.values()]
             for f in futures:
                 clusters.extend(f.result())
