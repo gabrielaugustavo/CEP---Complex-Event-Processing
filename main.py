@@ -11,7 +11,7 @@ import sys
 from mockup import generate_realistic_burst
 
 
-HOST_MOD_3 = "10.15.82.198"
+HOST_MOD_3 = "10.14.100.224"
 PORT_MOD_3 = 12345
 
 tk_root = None
@@ -27,9 +27,9 @@ class RealTimeClusterDetector:
     def process_packet_burst(self, packets, max_workers=8):
         grid_cells = defaultdict(list)
         for p in packets:
-            i = int(p['lat']) * 100
+            i = int(p['lat']) *10
             cod = int(p['error_code'])
-            grid_cells[(i, cod)].append(p)
+            grid_cells[(i,cod)].append(p)
 
         def _cluster_cell(cell_packets):
             coords = np.array([(p['lat'], p['lon']) for p in cell_packets])
@@ -85,12 +85,34 @@ def validate_packet(packet):
         return False
     return True
 
+def create_recv_socket(host="", port=5000, timeout=1.0):
+    while True:
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.bind((host, port))
+            s.settimeout(timeout)
+            return s
+        except Exception as e:
+            print(f"Falha em bindar o UDP socket na porta {port}: {e}. Tentando...")
+            time.sleep(1)
+
+def create_mod3_socket():
+    while True:
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            return s
+        except Exception as e:
+            print(f"Falha em criar Mod3 UDP socket: {e}. Tentando...")
+            time.sleep(1)
+
 def udp_receiver():
+    global sock
     accumulated_packets = []
     last_packet_time = None
     while True:
         try:
-            data, addr = sock.recvfrom(4096)
+            data, addr = sock.recvfrom(4096) # E3 - Recebendo os dados 
             packet = json.loads(data.decode("utf-8"))
             if not validate_packet(packet):
                 continue
@@ -100,11 +122,11 @@ def udp_receiver():
         except socket.timeout:
             if last_packet_time and (time.time() - last_packet_time > 5):
                 if accumulated_packets:
-                    packet_queue.put(accumulated_packets)
+                    packet_queue.put(accumulated_packets) #E4 - Processamento dos Dados para iniciar clusterização
                     burst = packet_queue.get()
                     accumulated_packets = []
                     start_time = time.time()
-                    detected_clusters = detector.process_packet_burst(burst)
+                    detected_clusters = detector.process_packet_burst(burst) #E5 - APLICAR DBSCAN Em threads para os dados padronizados
                     processing_time = time.time() - start_time
                     gui_queue.put(('result', detected_clusters))
                     gui_queue.put(('plot', (burst, detected_clusters, detector.eps)))
@@ -113,16 +135,18 @@ def udp_receiver():
                     for cluster_detail in detected_clusters:
                         lat, lon = cluster_detail['center']
                         error_code = cluster_detail['error_code']
-                        print(f"Centro do cluster ({lat:.6f}, {lon:.6f}) -  Erro: {error_code}")
-                    udp_modulo_3(detected_clusters)
+                        print(f"Centro do cluster ({lat:.9f}, {lon:.9f}) -  Erro: {error_code}")
+                    udp_modulo_3(detected_clusters) # E7 Enviar o Relatório ao módulo visual 
                 last_packet_time = None
-            continue
+            continue # E8 - Retorno a Escuta
         except OSError:
-            continue
+            try: sock.close()
+            except: pass
+            sock = create_recv_socket()
+            continue #
 
 def udp_modulo_3(detected_clusters):
-    sock_mod3 = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock_mod3.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+    sock_mod3 = create_mod3_socket()
     packetSend = []
     for cluster_detail in detected_clusters:
         lat, lon = cluster_detail['center']
@@ -135,8 +159,17 @@ def udp_modulo_3(detected_clusters):
         })
     for packet in packetSend:
         data = json.dumps(packet).encode("utf-8")
-        sock_mod3.sendto(data, (HOST_MOD_3, PORT_MOD_3))
-        print(f"Pacote Enviado :{data}")
+        sent = False
+        while not sent:
+            try:
+                sock_mod3.sendto(data, (HOST_MOD_3, PORT_MOD_3))
+                print(f"Pacote Enviado :{data}")
+                sent = True
+            except OSError as e:
+                print(f"Mod3 send error: {e}. Recriando socket e tentando novamente...")
+                sock_mod3.close()
+                sock_mod3 = create_mod3_socket()
+                time.sleep(1)
     return
 
 class CustomGUI:
@@ -215,7 +248,7 @@ def start_gui():
                 gui.timeBox.config(text=f"Tempo de Processamento: {data:.4f} s")
         root.after(100, poll_gui)
 
-    threading.Thread(target=udp_receiver, daemon=True).start()
+    threading.Thread(target=udp_receiver, daemon=True).start() #Estado E3 - Receber Dados e Colocar em Fila Concorrente 
     root.after(100, poll_gui)
 
     send_button = tk.Button(
@@ -239,15 +272,12 @@ def start_gui():
 
 if __name__ == "__main__":
     detector = RealTimeClusterDetector(
-        eps=0.0025,
+        eps=0.003,
         min_samples=100,
         min_cluster_size=300
     )
 
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind(("", 5000))
-    sock.settimeout(1.0)
+    sock = create_recv_socket() #Estado E2 - Erro REDE Reconectar rede por pooling
 
     start_gui()
 
