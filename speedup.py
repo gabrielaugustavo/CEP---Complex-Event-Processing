@@ -9,7 +9,7 @@ def measure_time(detector, packets, workers):
     return time.time() - start
 
 if __name__ == "__main__":
-    burst = generate_realistic_burst()  # ajuste o tamanho conforme necessário
+    burst = generate_realistic_burst()  
     detector = RealTimeClusterDetector(eps=0.0025, min_samples=100, min_cluster_size=300)
 
     worker_counts = [1, 2, 4, 8, 16, 32, 64, 128]
